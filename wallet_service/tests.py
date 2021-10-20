@@ -43,8 +43,7 @@ class WalletServiceAPIViewTestCase(APITestCase):
 			url1,
 			data,
 			format='json',
-			HTTP_AUTHORIZATION='Token ' + self.token
-		)
+			HTTP_AUTHORIZATION='Token ' + self.token)
 
 		if response.status_code == 200:
 			self.assertEqual(response.status_code, 200)
@@ -63,8 +62,7 @@ class WalletServiceAPIViewTestCase(APITestCase):
 			url2,
 			data,
 			format='json',
-			HTTP_AUTHORIZATION='Token ' + self.token
-		)
+			HTTP_AUTHORIZATION='Token ' + self.token)
 
 		if response.status_code == 200:
 			self.assertEqual(response.status_code, 200)
@@ -88,8 +86,7 @@ class WalletServiceAPIViewTestCase(APITestCase):
 			url,
 			data,
 			format='json',
-			HTTP_AUTHORIZATION='Token ' + self.token
-		)
+			HTTP_AUTHORIZATION='Token ' + self.token)
 
 		if response.status_code == 200:
 			self.assertEqual(response.status_code, 200)

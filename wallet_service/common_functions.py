@@ -5,7 +5,6 @@ import uuid
 import random
 import string
 from rest_framework.authtoken.models import Token
-
 from wallet_service.models import *
 
 
@@ -18,20 +17,18 @@ def generate_random_string():
 
 
 # fetch auth token of any user
-def get_authentication_token(userid):
-	user = Admins.objects.get(pk=userid)
+def get_authentication_token(user_id):
+	user = Admins.objects.get(pk=user_id)
 	token, created = Token.objects.get_or_create(user=user)
 	if created:
-		token_key = created.key
+		return created.key
 	else:
-		token_key = token.key
-	return token_key
+		return token.key
 
 
 # to fetch errors wrt to each field
 def get_json_errors(error_list_data):
 	__field_errors = {}
-
 	field_errors = [(k, v[0]) for k, v in error_list_data.items()]
 
 	for key, error_list in field_errors:

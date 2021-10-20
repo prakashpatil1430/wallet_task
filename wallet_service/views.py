@@ -1,21 +1,13 @@
-from django.shortcuts import render
-
-from django.shortcuts import render
-from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import AllowAny
 from rest_framework import permissions
 from rest_framework.authtoken.models import Token
-from django.contrib.auth import authenticate, logout
-import datetime
+
 from datetime import datetime as dt
 
-from .models import *
-from .serializers import *
-from .common_functions import *
-
-# Create your views here.
+from wallet_service.models import *
+from wallet_service.serializers import *
+from wallet_service.common_functions import *
 
 
 class UserLogin(GenericAPIView):
@@ -23,29 +15,24 @@ class UserLogin(GenericAPIView):
 	Account Initialization for wallet
 	"""
 	serializer_class = UserLoginSerializers
-	permission_classes = [
-		permissions.AllowAny
-	]
+	permission_classes = [permissions.AllowAny]
 
 	@classmethod
 	def post(self, request):
 		response = {}
 		user = {}
 
-		postData = UserLoginSerializers(data=request.data)
+		post_data = UserLoginSerializers(data=request.data)
 
-		if postData.is_valid():
+		if post_data.is_valid():
 
-			customer_xid = postData.data['customer_id']
+			customer_xid = post_data.data['customer_id']
 
 			check_customer_exists = Customers.objects.filter(
-															customer_id=customer_xid).first()
+				customer_id=customer_xid).first()
 			if not check_customer_exists:
 				customer_id = Customers.objects.create(customer_id=customer_xid)
-				user_rec = Admins.objects.create(
-											customer=customer_id,
-											username=customer_xid
-										)
+				user_rec = Admins.objects.create(customer=customer_id, username=customer_xid)
 			else:
 				customer_id = check_customer_exists
 				user_rec = Admins.objects.filter(customer=customer_id).first()
@@ -58,16 +45,14 @@ class UserLogin(GenericAPIView):
 				response['data'] = user
 				response['token'] = token.key
 				response['status'] = 1
-				return Response(res)
 			else:
 				response['errors'] = {"_error":'Customer not found'}
 				response['status'] = 0
-				return Response(res)
 
 		else:
-			response['errors'] = get_json_errors(postData.errors)
+			response['errors'] = get_json_errors(post_data.errors)
 			response['status'] = 0
-			return Response(response)
+		return Response(response)
 
 
 class EnableWallet(GenericAPIView):
@@ -78,27 +63,21 @@ class EnableWallet(GenericAPIView):
 
 	@classmethod
 	def post(self, request):
-		res = {}
+		response = {}
 		post_data = WalletDetailsSerializers(data=request.data)
 		if post_data.is_valid():
+			find_customer = Customers.objects.filter(id=request.user.customer_id).first()
 
-			findCustomer = Customers.objects.filter(id=request.user.customer_id).first()
-
-			wallet_exists = WalletDetails.objects.filter(
-														user_id=findCustomer.id).exists()
+			wallet_exists = WalletDetails.objects.filter(user_id=find_customer.id).exists()
 			if not wallet_exists:
-				WalletDetails.objects.create(
-											user_id=findCustomer.id,
-											owned_by=findCustomer.customer_id,
-											wallet_status=True,
-											enabled_at=dt.now()
-										)
+				WalletDetails.objects.create(user_id=find_customer.id,
+											 owned_by=find_customer.customer_id,
+											 wallet_status=True,
+											 enabled_at=dt.now())
 			else:
-				WalletDetails.objects.filter(
-											user_id=findCustomer.id).update(wallet_status=True)
+				WalletDetails.objects.filter(user_id=find_customer.id).update(wallet_status=True)
 
-			wallet_details = WalletDetails.objects.filter(
-															user_id=findCustomer.id).first()
+			wallet_details = WalletDetails.objects.filter(user_id=find_customer.id).first()
 			data = WalletDetailsSerializers(wallet_details).data
 			basic = {}
 			basic['id'] = encode_str(data['id'])
@@ -111,31 +90,30 @@ class EnableWallet(GenericAPIView):
 			basic['balance'] = data['amount']
 			basic['enabled_at'] = data['enabled_at']
 
-			res['data'] = basic
-			res["status_code"] = 1
-			return Response(res)
+			response['data'] = basic
+			response["status_code"] = 1
 		else:
-			res['error_message'] = post_data.errors
-			res["status_code"] = 0
-			return Response(res)
+			response['error_message'] = post_data.errors
+			response["status_code"] = 0
+		return Response(response)
 
 	@classmethod
 	def get(self, request):
-		res = {}
+		response = {}
 
 		post_data = WalletDetailsSerializers(data=request.data)
 		if post_data.is_valid():
 			basic = {}
 
-			findUser = Customers.objects.filter(id=request.user.customer_id).first()
+			find_user = Customers.objects.filter(id=request.user.customer_id).first()
 
 			check_wallet_status = WalletDetails.objects.filter(
-																owned_by=findUser.customer_id).first().wallet_status
+				owned_by=find_user.customer_id).first().wallet_status
 			if check_wallet_status:
 				wallet_exists = WalletDetails.objects.filter(
-															user_id=findUser.id, wallet_status=True).exists()
+					user_id=find_user.id, wallet_status=True).exists()
 				if wallet_exists:
-					wallet_details = WalletDetails.objects.filter(user_id=findUser.id).first()
+					wallet_details = WalletDetails.objects.filter(user_id=find_user.id).first()
 					data = WalletDetailsSerializers(wallet_details).data
 
 					basic['id'] = encode_str(data['id'])
@@ -148,45 +126,41 @@ class EnableWallet(GenericAPIView):
 					basic['enabled_at'] = data['enabled_at']
 					balance = 0
 					check_transactions = WalletTransactions.objects.filter(
-																			user_id=findUser.id).values(
-																										'deposited_by', 'withdrawn_by', 'amount')
+						user_id=find_user.id).values('deposited_by', 'withdrawn_by', 'amount')
 					for i in check_transactions:
 						if i['deposited_by']:
 							balance = balance + i['amount']
 						else:
 							balance = balance - i['amount']
 					basic['balance'] = balance
-				res['data'] = basic
-				res["status_code"] = 1
-				return Response(res)
+				response['data'] = basic
+				response["status_code"] = 1
 			else:
-				res['error_message'] = 'Please enable your wallet to check balance amount!'
-				res["status_code"] = 0
-				return Response(res)
+				response['error_message'] = 'Please enable your wallet to check balance amount!'
+				response["status_code"] = 0
 		else:
-			res['error_message'] = post_data.errors
-			res["status_code"] = 0
-			return Response(res)
+			response['error_message'] = post_data.errors
+			response["status_code"] = 0
+		return Response(response)
 
 	@classmethod
 	def patch(self, request):
-		res = {}
+		response = {}
 
 		post_data = WalletDetailsSerializers(data=request.data)
 		if post_data.is_valid():
 			basic = {}
-
-			findUser = Customers.objects.filter(id=request.user.customer_id).first()
+			find_user = Customers.objects.filter(id=request.user.customer_id).first()
 
 			wallet_exists = WalletDetails.objects.filter(
-															user_id=findUser.id, wallet_status=True).exists()
+				user_id=find_user.id, wallet_status=True).exists()
 			if wallet_exists:
-				WalletDetails.objects.filter(user_id=findUser.id).update(
-																	wallet_status=False,
-																	disabled_at=dt.now()
-																)
+				WalletDetails.objects.filter(
+					user_id=find_user.id).update(
+						wallet_status=False,
+						disabled_at=dt.now())
 
-				wallet_details = WalletDetails.objects.filter(user_id=findUser.id).first()
+				wallet_details = WalletDetails.objects.filter(user_id=find_user.id).first()
 				data = WalletDetailsSerializers(wallet_details).data
 
 				basic['id'] = encode_str(data['id'])
@@ -201,13 +175,12 @@ class EnableWallet(GenericAPIView):
 				balance = 0
 
 				basic['balance'] = balance
-			res['data'] = basic
-			res["status_code"] = 1
-			return Response(res)
+			response['data'] = basic
+			response["status_code"] = 1
 		else:
-			res['error_message'] = post_data.errors
-			res["status_code"] = 0
-			return Response(res)
+			response['error_message'] = post_data.errors
+			response["status_code"] = 0
+		return Response(response)
 
 
 class WalletDeposits(GenericAPIView):
@@ -218,7 +191,7 @@ class WalletDeposits(GenericAPIView):
 
 	@classmethod
 	def post(self, request):
-		res = {}
+		response = {}
 
 		post_data = WalletTransactionsSerializers(data=request.data)
 		if post_data.is_valid():
@@ -226,29 +199,26 @@ class WalletDeposits(GenericAPIView):
 			customer_id = request.user.customer_id
 			print(customer_id)
 
-			findUser = Customers.objects.filter(pk=customer_id).first()
-			print(findUser)
+			find_user = Customers.objects.filter(pk=customer_id).first()
+			print(find_user)
 			check_wallet_status = WalletDetails.objects.filter(
-																owned_by=findUser.customer_id).first().wallet_status
-			if check_wallet_status:
-
-				# reference_id=generate_random_ids()
-				reference_id = post_data.data.get('reference_id')
-
+				owned_by=find_user.customer_id).first().wallet_status
+			reference_id = post_data.data.get('reference_id')
+			refernece_id_exists = WalletTransactions.objects.filter(
+					reference_id=reference_id).exists()
+			if check_wallet_status and not refernece_id_exists:
 				wallet_exists = WalletDetails.objects.filter(
-																user_id=findUser.id, wallet_status=True).first()
+					user_id=find_user.id, wallet_status=True).first()
 				if wallet_exists:
-					WalletTransactions.objects.create(
-												user_id=findUser.id,
-												wallet_id=wallet_exists.id,
-												reference_id=reference_id,
-												amount=post_data.data.get('amount'),
-												deposited_at=dt.now(),
-												deposited_by=findUser.customer_id
-											)
+					WalletTransactions.objects.create(user_id=find_user.id,
+													  wallet_id=wallet_exists.id,
+													  reference_id=reference_id,
+													  amount=post_data.data.get('amount'),
+													  deposited_at=dt.now(),
+													  deposited_by=find_user.customer_id)
 
 				wallet_details = WalletTransactions.objects.filter(
-																	user_id=findUser.id, reference_id=reference_id).first()
+					user_id=find_user.id, reference_id=reference_id).first()
 				data = WalletTransactionsSerializers(wallet_details).data
 
 				basic = {}
@@ -258,17 +228,18 @@ class WalletDeposits(GenericAPIView):
 				basic['deposited_by'] = data['deposited_by']
 				basic['deposited_at'] = data['deposited_at']
 
-				res['data'] = basic
-				res["status_code"] = 1
-				return Response(res)
+				response['data'] = basic
+				response["status_code"] = 1
 			else:
-				res['error_message'] = 'Please enable your wallet to check balance amount!'
-				res["status_code"] = 0
-				return Response(res)
+				if not refernece_id_exists:
+					response['error_message'] = 'Transaction with Reference id given already exists'
+				else:
+					response['error_message'] = 'Please enable your wallet to check balance amount!'
+				response["status_code"] = 0
 		else:
-			res['error_message'] = post_data.errors
-			res["status_code"] = 0
-			return Response(res)
+			response['error_message'] = post_data.errors
+			response["status_code"] = 0
+		return Response(response)
 
 
 class WalletWithdrawals(GenericAPIView):
@@ -279,69 +250,58 @@ class WalletWithdrawals(GenericAPIView):
 
 	@classmethod
 	def post(self, request):
-		res = {}
+		response = {}
 
 		post_data = WalletTransactionsSerializers(data=request.data)
 		if post_data.is_valid():
-
 			customer_id = request.user.customer_id
-
-			findUser = Customers.objects.filter(id=customer_id).first()
+			find_user = Customers.objects.filter(id=customer_id).first()
 			check_wallet_status = WalletDetails.objects.filter(
-																owned_by=findUser.customer_id).first().wallet_status
-			if check_wallet_status:
-
+				owned_by=find_user.customer_id).first().wallet_status
+			reference_id = post_data.data.get('reference_id')
+			refernece_id_exists = WalletTransactions.objects.filter(
+					reference_id=reference_id).exists()
+			if check_wallet_status and not refernece_id_exists:
 				balance = 0
 				check_transactions = WalletTransactions.objects.filter(
-																		user_id=customer_id).values(
-																									'deposited_by', 'withdrawn_by', 'amount')
+					user_id=customer_id).values('deposited_by', 'withdrawn_by', 'amount')
 				for i in check_transactions:
 					if i['deposited_by']:
 						balance = balance + i['amount']
 					else:
 						balance = balance - i['amount']
-
+				
 				if balance >= post_data.data.get('amount'):
-
-					# reference_id=generate_random_ids()
-					reference_id = post_data.data.get('reference_id')
 					wallet_exists = WalletDetails.objects.filter(
-																user_id=findUser.id, wallet_status=True).first()
+						user_id=find_user.id, wallet_status=True).first()
 					if wallet_exists:
-						WalletTransactions.objects.create(
-													user_id=findUser.id,
-													wallet_id=wallet_exists.id,
-													reference_id=reference_id,
-													amount=post_data.data.get('amount'),
-													withdrawn_at=dt.now(),
-													withdrawn_by=findUser.customer_id
-												)
-
+						WalletTransactions.objects.create(user_id=find_user.id,
+														  wallet_id=wallet_exists.id,
+														  reference_id=reference_id,
+														  amount=post_data.data.get('amount'),
+														  withdrawn_at=dt.now(),
+														  withdrawn_by=find_user.customer_id)
 					wallet_details = WalletTransactions.objects.filter(
-																		user_id=findUser.id, reference_id=reference_id).first()
+						user_id=find_user.id, reference_id=reference_id).first()
 					data = WalletTransactionsSerializers(wallet_details).data
-
 					basic = {}
 					basic['id'] = encode_str(data['id'])
 					basic['reference_id'] = data['reference_id']
 					basic['amount'] = data['amount']
 					basic['withdrawn_by'] = data['withdrawn_by']
 					basic['withdrawn_at'] = data['withdrawn_at']
-
-					res['data'] = basic
-					res["status_code"] = 1
-					return Response(res)
+					response['data'] = basic
+					response["status_code"] = 1
 				else:
-					res['error_message'] = 'The amount you are trying to withdraw is more than the balance you currently hold!'
-					res["status_code"] = 0
-					return Response(res)
+					response['error_message'] = 'The amount you are trying to withdraw is more than the balance you currently hold!'
+					response["status_code"] = 0
 			else:
-				res['error_message'] = 'Please enable your wallet to check balance amount!'
-				res["status_code"] = 0
-				return Response(res)
-
+				if not refernece_id_exists:
+					response['error_message'] = 'Transaction with Reference id given already exists'
+				else:	
+					response['error_message'] = 'Please enable your wallet to check balance amount!'
+				response["status_code"] = 0
 		else:
-			res['error_message'] = post_data.errors
-			res["status_code"] = 0
-
-			return Response(res)
+			response['error_message'] = post_data.errors
+			response["status_code"] = 0
+		return Response(response)

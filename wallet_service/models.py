@@ -3,8 +3,6 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django import utils
 
-# Create your models here.
-
 
 class Customers(models.Model):
 	customer_id = models.CharField(max_length=200)
@@ -17,12 +15,8 @@ class Customers(models.Model):
 
 
 class Admins(AbstractUser):
-
-	customer = models.ForeignKey(
-								Customers, related_name="customer_user",
-								on_delete=models.CASCADE,
-								null=True, blank=True)
-
+	customer = models.ForeignKey(Customers, related_name="customer_user", on_delete=models.CASCADE,
+								 null=True, blank=True)
 	class Meta:
 		db_table = 'admins'
 
@@ -30,10 +24,8 @@ class Admins(AbstractUser):
 class WalletDetails(models.Model):
 	""" Wallet Details """
 
-	user = models.ForeignKey(
-							Customers, related_name="wallet_user",
-							on_delete=models.CASCADE,
-							null=True, blank=True)
+	user = models.ForeignKey(Customers, related_name="wallet_user",
+							 on_delete=models.CASCADE, null=True, blank=True)
 	owned_by = models.TextField(max_length=150, null=True, blank=True)
 	amount = models.FloatField(default=0.0)
 	enabled_at = models.DateTimeField(blank=True, null=True)
@@ -54,10 +46,8 @@ class WalletTransactions(models.Model):
 							Customers, related_name="wallet_transactions_user",
 							on_delete=models.CASCADE,
 							null=True, blank=True)
-	wallet = models.ForeignKey(
-								WalletDetails, related_name="wallet_details",
-								on_delete=models.CASCADE,
-								null=True, blank=True)
+	wallet = models.ForeignKey(WalletDetails, related_name="wallet_details",
+								on_delete=models.CASCADE, null=True, blank=True)
 	reference_id = models.CharField(max_length=150, null=True, blank=True)
 	withdrawn_by = models.TextField(max_length=150, null=True, blank=True)
 	deposited_by = models.TextField(max_length=150, null=True, blank=True)
